@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Novo Lead Saúde — SegurCRM</title>
+<title>Pedido de Simulação — Seguro de Saúde</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   * { box-sizing: border-box; }
@@ -128,19 +128,18 @@
 
   <div id="invalidState" class="hidden">
     <h1>Link inválido</h1>
-    <p class="desc">Não foi possível encontrar este link de parceiro. Confirma o link com o Carlos Vieira.</p>
+    <p class="desc">Não foi possível encontrar este link. Confirma o link com quem to enviou.</p>
   </div>
 
   <div id="formState" class="hidden">
-    <h1 id="formTitle">Novo lead — Seguro de Saúde</h1>
+    <h1>Pedido de Simulação — Seguro de Saúde</h1>
     <p class="desc">
-      Preenche os dados do cliente e das pessoas a segurar. O Carlos Vieira vai entrar em
-      contacto diretamente com o cliente para tratar do processo.
+      Preenche os teus dados e das pessoas a segurar para receberes uma simulação, sem compromisso.
     </p>
 
     <form id="leadForm">
       <label>
-        Nome do cliente *
+        Nome *
         <input type="text" id="clientName" placeholder="Nome completo" required />
       </label>
 
@@ -161,22 +160,22 @@
 
       <button type="button" class="add-date-button" id="addDateButton">+ Adicionar outra pessoa</button>
 
-      <button type="submit" id="submitButton">Enviar dados</button>
+      <button type="submit" id="submitButton">Pedir simulação</button>
     </form>
 
     <div id="errorBox" class="error-box hidden"></div>
   </div>
 
   <div id="successState" class="hidden">
-    <h1>✅ Dados enviados</h1>
-    <p class="desc" id="successText"></p>
-    <button type="button" id="sendAnotherButton">Enviar outro lead</button>
+    <h1>✅ Pedido enviado</h1>
+    <p class="desc">
+      Obrigado! Os teus dados foram enviados e entraremos em contacto brevemente com a tua simulação.
+    </p>
+    <button type="button" id="sendAnotherButton">Enviar outro pedido</button>
   </div>
 </div>
 
 <script>
-  // Substitui pelos valores reais do teu projeto Supabase (os mesmos
-  // já usados no resto do CRM).
   const SUPABASE_URL = "https://accmdxprsetsqsrepflq.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_tO9ZpUkCtyDc_yGuItEZfA_xtNRUOkI";
 
@@ -189,8 +188,6 @@
   const invalidState = document.getElementById("invalidState");
   const formState = document.getElementById("formState");
   const successState = document.getElementById("successState");
-  const formTitle = document.getElementById("formTitle");
-  const successText = document.getElementById("successText");
   const leadForm = document.getElementById("leadForm");
   const submitButton = document.getElementById("submitButton");
   const errorBox = document.getElementById("errorBox");
@@ -198,6 +195,8 @@
   const insuredList = document.getElementById("insuredList");
   const addDateButton = document.getElementById("addDateButton");
 
+  // Guardado apenas internamente (nunca mostrado no ecrã) — usado só
+  // para associar o pedido ao parceiro certo e avisar o Carlos.
   let currentPartner = null;
   let insuredDates = [""];
 
@@ -268,13 +267,9 @@
     }
 
     currentPartner = data;
-    formTitle.textContent = `Novo lead — ${data.name} (Saúde)`;
     showState(formState);
   }
 
-  // Cria automaticamente um alerta no Dashboard do CRM assim que o
-  // parceiro submete este formulário. Se falhar, o lead já foi gravado
-  // na mesma, por isso não bloqueia o envio.
   async function createLeadDashboardAlert(clientName, phone, email, filledDates) {
     const today = new Date().toISOString().split("T")[0];
 
@@ -310,7 +305,7 @@
     const filledDates = insuredDates.filter(Boolean);
 
     if (!clientName || !clientPhone || !clientEmail) {
-      errorBox.textContent = "Nome, telemóvel e email do cliente são obrigatórios.";
+      errorBox.textContent = "Nome, telemóvel e email são obrigatórios.";
       errorBox.classList.remove("hidden");
       return;
     }
@@ -336,7 +331,7 @@
 
     if (error) {
       submitButton.disabled = false;
-      submitButton.textContent = "Enviar dados";
+      submitButton.textContent = "Pedir simulação";
       errorBox.textContent = error.message;
       errorBox.classList.remove("hidden");
       return;
@@ -345,11 +340,7 @@
     await createLeadDashboardAlert(clientName, clientPhone, clientEmail, filledDates);
 
     submitButton.disabled = false;
-    submitButton.textContent = "Enviar dados";
-
-    successText.textContent =
-      `Obrigado, ${currentPartner.name}. Os dados do cliente foram enviados ao Carlos Vieira, ` +
-      `que vai entrar em contacto brevemente.`;
+    submitButton.textContent = "Pedir simulação";
 
     showState(successState);
   });
