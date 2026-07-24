@@ -30,6 +30,9 @@
     margin: 0;
     color: #111827;
   }
+  h1 .branch-word {
+    color: #2563eb;
+  }
   p.desc {
     color: #6b7280;
     margin-top: 12px;
@@ -56,6 +59,11 @@
     width: 100%;
     box-sizing: border-box;
     font-family: Arial, sans-serif;
+  }
+  .field-hint {
+    font-weight: normal;
+    color: #9ca3af;
+    font-size: 12px;
   }
   button {
     background: #2563eb;
@@ -98,7 +106,7 @@
   </div>
 
   <div id="formState" class="hidden">
-    <h1>Pedido de Simulação — Seguro Automóvel</h1>
+    <h1>Pedido de Simulação — Seguro <span class="branch-word">🚗 Automóvel</span></h1>
     <p class="desc">
       Preenche os teus dados para receberes uma simulação de seguro automóvel, sem compromisso.
     </p>
@@ -130,13 +138,13 @@
       </label>
 
       <label>
-        Data de nascimento *
-        <input type="date" id="birthDate" required />
+        Data de nascimento * <span class="field-hint">(DD-MM-AAAA)</span>
+        <input type="text" id="birthDate" placeholder="Ex: 21-01-1971" inputmode="numeric" required />
       </label>
 
       <label>
-        Data de início da carta de condução *
-        <input type="date" id="licenseStartDate" required />
+        Data de início da carta de condução * <span class="field-hint">(DD-MM-AAAA)</span>
+        <input type="text" id="licenseStartDate" placeholder="Ex: 05-06-1995" inputmode="numeric" required />
       </label>
 
       <label>
@@ -187,6 +195,31 @@
     formState.classList.add("hidden");
     successState.classList.add("hidden");
     state.classList.remove("hidden");
+  }
+
+  // Aceita "21-01-1971" (também "21/01/1971" ou "21.01.1971") e
+  // devolve "1971-01-21" (formato que a base de dados espera), ou null
+  // se a data não for válida.
+  function parseDateBr(text) {
+    const value = String(text || "").trim();
+    const match = value.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+
+    if (!match) return null;
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > 31) return null;
+    if (year < 1900 || year > 2100) return null;
+
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
   async function loadPartner() {
@@ -246,8 +279,8 @@
     const clientEmail = document.getElementById("clientEmail").value.trim();
     const clientNif = document.getElementById("clientNif").value.trim();
     const postalCode = document.getElementById("postalCode").value.trim();
-    const birthDate = document.getElementById("birthDate").value;
-    const licenseStartDate = document.getElementById("licenseStartDate").value;
+    const birthDateText = document.getElementById("birthDate").value.trim();
+    const licenseStartDateText = document.getElementById("licenseStartDate").value.trim();
     const licensePlate = document.getElementById("licensePlate").value.trim().toUpperCase();
 
     if (!clientName || !clientPhone || !clientEmail) {
@@ -256,7 +289,7 @@
       return;
     }
 
-    if (!clientNif || !postalCode || !birthDate || !licenseStartDate || !licensePlate) {
+    if (!clientNif || !postalCode || !birthDateText || !licenseStartDateText || !licensePlate) {
       errorBox.textContent = "Preenche todos os dados necessários para a simulação (NIF, código postal, data de nascimento, início da carta e matrícula).";
       errorBox.classList.remove("hidden");
       return;
@@ -264,6 +297,22 @@
 
     if (!/^\d{9}$/.test(clientNif)) {
       errorBox.textContent = "O NIF deve ter 9 dígitos.";
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    const birthDate = parseDateBr(birthDateText);
+
+    if (!birthDate) {
+      errorBox.textContent = "A data de nascimento tem de estar no formato DD-MM-AAAA (ex: 21-01-1971).";
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    const licenseStartDate = parseDateBr(licenseStartDateText);
+
+    if (!licenseStartDate) {
+      errorBox.textContent = "A data de início da carta tem de estar no formato DD-MM-AAAA (ex: 05-06-1995).";
       errorBox.classList.remove("hidden");
       return;
     }
