@@ -30,6 +30,9 @@
     margin: 0;
     color: #111827;
   }
+  h1 .branch-word {
+    color: #16a34a;
+  }
   p.desc {
     color: #6b7280;
     margin-top: 12px;
@@ -57,8 +60,13 @@
     box-sizing: border-box;
     font-family: Arial, sans-serif;
   }
+  .field-hint {
+    font-weight: normal;
+    color: #9ca3af;
+    font-size: 12px;
+  }
   button {
-    background: #2563eb;
+    background: #16a34a;
     color: white;
     border: none;
     padding: 14px;
@@ -103,8 +111,8 @@
   }
   .add-date-button {
     background: white;
-    border: 1.5px dashed #2563eb;
-    color: #1d4ed8;
+    border: 1.5px dashed #16a34a;
+    color: #15803d;
     font-weight: bold;
     font-size: 13px;
     padding: 11px 14px;
@@ -132,7 +140,7 @@
   </div>
 
   <div id="formState" class="hidden">
-    <h1>Pedido de Simulação — Seguro de Saúde</h1>
+    <h1>Pedido de Simulação — Seguro de <span class="branch-word">➕ Saúde</span></h1>
     <p class="desc">
       Preenche os teus dados e das pessoas a segurar para receberes uma simulação, sem compromisso.
     </p>
@@ -154,7 +162,7 @@
       </label>
 
       <label>
-        Data de nascimento de cada pessoa a segurar *
+        Data de nascimento de cada pessoa a segurar * <span class="field-hint">(DD-MM-AAAA)</span>
         <div class="insured-list" id="insuredList"></div>
       </label>
 
@@ -208,6 +216,31 @@
     state.classList.remove("hidden");
   }
 
+  // Aceita "21-01-1971" (também "21/01/1971" ou "21.01.1971") e
+  // devolve "1971-01-21" (formato que a base de dados espera), ou null
+  // se a data não for válida.
+  function parseDateBr(text) {
+    const value = String(text || "").trim();
+    const match = value.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+
+    if (!match) return null;
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > 31) return null;
+    if (year < 1900 || year > 2100) return null;
+
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
   function renderInsuredList() {
     insuredList.innerHTML = "";
 
@@ -216,9 +249,11 @@
       row.className = "insured-row";
 
       const input = document.createElement("input");
-      input.type = "date";
+      input.type = "text";
+      input.placeholder = "Ex: 21-01-1971";
+      input.inputMode = "numeric";
       input.value = value;
-      input.addEventListener("change", function (e) {
+      input.addEventListener("input", function (e) {
         insuredDates[index] = e.target.value;
       });
 
@@ -281,7 +316,7 @@
     ];
 
     const { error } = await supabaseClient.from("dashboard_alerts").insert({
-      title: `❤️ Novo lead saúde de parceiro: ${clientName || "Cliente"}`,
+      title: `➕ Novo lead saúde de parceiro: ${clientName || "Cliente"}`,
       alert_date: today,
       alert_time: null,
       notes: notesLines.join("\n"),
@@ -302,7 +337,7 @@
     const clientName = document.getElementById("clientName").value.trim();
     const clientPhone = document.getElementById("clientPhone").value.trim();
     const clientEmail = document.getElementById("clientEmail").value.trim();
-    const filledDates = insuredDates.filter(Boolean);
+    const rawDates = insuredDates.filter(Boolean);
 
     if (!clientName || !clientPhone || !clientEmail) {
       errorBox.textContent = "Nome, telemóvel e email são obrigatórios.";
@@ -310,10 +345,24 @@
       return;
     }
 
-    if (filledDates.length === 0) {
+    if (rawDates.length === 0) {
       errorBox.textContent = "Indica a data de nascimento de pelo menos uma pessoa a segurar.";
       errorBox.classList.remove("hidden");
       return;
+    }
+
+    const parsedDates = [];
+
+    for (const rawDate of rawDates) {
+      const parsed = parseDateBr(rawDate);
+
+      if (!parsed) {
+        errorBox.textContent = `A data "${rawDate}" não é válida. Usa o formato DD-MM-AAAA (ex: 21-01-1971).`;
+        errorBox.classList.remove("hidden");
+        return;
+      }
+
+      parsedDates.push(parsed);
     }
 
     submitButton.disabled = true;
@@ -324,7 +373,7 @@
       client_name: clientName,
       client_phone: clientPhone,
       client_email: clientEmail,
-      insured_birth_dates: filledDates,
+      insured_birth_dates: parsedDates,
       status: "novo",
       events: [],
     });
@@ -337,7 +386,7 @@
       return;
     }
 
-    await createLeadDashboardAlert(clientName, clientPhone, clientEmail, filledDates);
+    await createLeadDashboardAlert(clientName, clientPhone, clientEmail, parsedDates);
 
     submitButton.disabled = false;
     submitButton.textContent = "Pedir simulação";
