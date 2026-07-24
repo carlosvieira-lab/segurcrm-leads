@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Novo Lead Saúde — SegurCRM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #f3f4f6;
+    font-family: Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.15);
+  }
+  h1 {
+    font-size: 26px;
+    margin: 0;
+    color: #111827;
+  }
+  p.desc {
+    color: #6b7280;
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+  form {
+    display: grid;
+    gap: 14px;
+    margin-top: 20px;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #374151;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  input {
+    padding: 13px;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    font-size: 15px;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+  }
+  button {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 15px;
+    margin-top: 6px;
+    font-family: Arial, sans-serif;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .hidden { display: none; }
+  .error-box {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    padding: 12px;
+    margin-top: 14px;
+    font-size: 14px;
+  }
+  .insured-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .remove-date-button {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #991b1b;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .add-date-button {
+    background: white;
+    border: 1.5px dashed #2563eb;
+    color: #1d4ed8;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    font-family: Arial, sans-serif;
+  }
+  .insured-list {
+    display: grid;
+    gap: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card" id="app">
+  <div id="loadingState">
+    <h1>A carregar...</h1>
+  </div>
+
+  <div id="invalidState" class="hidden">
+    <h1>Link inválido</h1>
+    <p class="desc">Não foi possível encontrar este link de parceiro. Confirma o link com o Carlos Vieira.</p>
+  </div>
+
+  <div id="formState" class="hidden">
+    <h1 id="formTitle">Novo lead — Seguro de Saúde</h1>
+    <p class="desc">
+      Preenche os dados do cliente e das pessoas a segurar. O Carlos Vieira vai entrar em
+      contacto diretamente com o cliente para tratar do processo.
+    </p>
+
+    <form id="leadForm">
+      <label>
+        Nome do cliente *
+        <input type="text" id="clientName" placeholder="Nome completo" required />
+      </label>
+
+      <label>
+        Telemóvel *
+        <input type="tel" id="clientPhone" placeholder="Telemóvel" required />
+      </label>
+
+      <label>
+        Email *
+        <input type="email" id="clientEmail" placeholder="Email" required />
+      </label>
+
+      <label>
+        Data de nascimento de cada pessoa a segurar *
+        <div class="insured-list" id="insuredList"></div>
+      </label>
+
+      <button type="button" class="add-date-button" id="addDateButton">+ Adicionar outra pessoa</button>
+
+      <button type="submit" id="submitButton">Enviar dados</button>
+    </form>
+
+    <div id="errorBox" class="error-box hidden"></div>
+  </div>
+
+  <div id="successState" class="hidden">
+    <h1>✅ Dados enviados</h1>
+    <p class="desc" id="successText"></p>
+    <button type="button" id="sendAnotherButton">Enviar outro lead</button>
+  </div>
+</div>
+
+<script>
+  // Substitui pelos valores reais do teu projeto Supabase (os mesmos
+  // já usados no resto do CRM).
+  const SUPABASE_URL = "https://accmdxprsetsqsrepflq.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_AicIeg3TXV3cJaG3R8YBFQ_A3uJGQEI";
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const params = new URLSearchParams(window.location.search);
+  const partnerId = params.get("id");
+
+  const loadingState = document.getElementById("loadingState");
+  const invalidState = document.getElementById("invalidState");
+  const formState = document.getElementById("formState");
+  const successState = document.getElementById("successState");
+  const formTitle = document.getElementById("formTitle");
+  const successText = document.getElementById("successText");
+  const leadForm = document.getElementById("leadForm");
+  const submitButton = document.getElementById("submitButton");
+  const errorBox = document.getElementById("errorBox");
+  const sendAnotherButton = document.getElementById("sendAnotherButton");
+  const insuredList = document.getElementById("insuredList");
+  const addDateButton = document.getElementById("addDateButton");
+
+  let currentPartner = null;
+  let insuredDates = [""];
+
+  function showState(state) {
+    loadingState.classList.add("hidden");
+    invalidState.classList.add("hidden");
+    formState.classList.add("hidden");
+    successState.classList.add("hidden");
+    state.classList.remove("hidden");
+  }
+
+  function renderInsuredList() {
+    insuredList.innerHTML = "";
+
+    insuredDates.forEach(function (value, index) {
+      const row = document.createElement("div");
+      row.className = "insured-row";
+
+      const input = document.createElement("input");
+      input.type = "date";
+      input.value = value;
+      input.addEventListener("change", function (e) {
+        insuredDates[index] = e.target.value;
+      });
+
+      row.appendChild(input);
+
+      if (insuredDates.length > 1) {
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "remove-date-button";
+        removeButton.textContent = "×";
+        removeButton.setAttribute("aria-label", "Remover pessoa");
+        removeButton.addEventListener("click", function () {
+          insuredDates.splice(index, 1);
+          renderInsuredList();
+        });
+        row.appendChild(removeButton);
+      }
+
+      insuredList.appendChild(row);
+    });
+  }
+
+  addDateButton.addEventListener("click", function () {
+    insuredDates.push("");
+    renderInsuredList();
+  });
+
+  renderInsuredList();
+
+  async function loadPartner() {
+    if (!partnerId) {
+      showState(invalidState);
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from("partners")
+      .select("id, name, email")
+      .eq("id", partnerId)
+      .eq("team", "saude")
+      .maybeSingle();
+
+    if (error || !data) {
+      showState(invalidState);
+      return;
+    }
+
+    currentPartner = data;
+    formTitle.textContent = `Novo lead — ${data.name} (Saúde)`;
+    showState(formState);
+  }
+
+  // Cria automaticamente um alerta no Dashboard do CRM assim que o
+  // parceiro submete este formulário. Se falhar, o lead já foi gravado
+  // na mesma, por isso não bloqueia o envio.
+  async function createLeadDashboardAlert(clientName, phone, email, filledDates) {
+    const today = new Date().toISOString().split("T")[0];
+
+    const notesLines = [
+      `Parceiro (Saúde): ${currentPartner.name || "-"}`,
+      `Telemóvel: ${phone || "-"}`,
+      `Email: ${email || "-"}`,
+      `Pessoas a segurar: ${filledDates.length}`,
+    ];
+
+    const { error } = await supabaseClient.from("dashboard_alerts").insert({
+      title: `❤️ Novo lead saúde de parceiro: ${clientName || "Cliente"}`,
+      alert_date: today,
+      alert_time: null,
+      notes: notesLines.join("\n"),
+      status: "pendente",
+      google_calendar_created: false,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.log("Não foi possível criar o alerta do dashboard:", error.message);
+    }
+  }
+
+  leadForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    errorBox.classList.add("hidden");
+
+    const clientName = document.getElementById("clientName").value.trim();
+    const clientPhone = document.getElementById("clientPhone").value.trim();
+    const clientEmail = document.getElementById("clientEmail").value.trim();
+    const filledDates = insuredDates.filter(Boolean);
+
+    if (!clientName || !clientPhone || !clientEmail) {
+      errorBox.textContent = "Nome, telemóvel e email do cliente são obrigatórios.";
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    if (filledDates.length === 0) {
+      errorBox.textContent = "Indica a data de nascimento de pelo menos uma pessoa a segurar.";
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "A enviar...";
+
+    const { error } = await supabaseClient.from("saude_partner_leads").insert({
+      partner_id: currentPartner.id,
+      client_name: clientName,
+      client_phone: clientPhone,
+      client_email: clientEmail,
+      insured_birth_dates: filledDates,
+      status: "novo",
+      events: [],
+    });
+
+    if (error) {
+      submitButton.disabled = false;
+      submitButton.textContent = "Enviar dados";
+      errorBox.textContent = error.message;
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    await createLeadDashboardAlert(clientName, clientPhone, clientEmail, filledDates);
+
+    submitButton.disabled = false;
+    submitButton.textContent = "Enviar dados";
+
+    successText.textContent =
+      `Obrigado, ${currentPartner.name}. Os dados do cliente foram enviados ao Carlos Vieira, ` +
+      `que vai entrar em contacto brevemente.`;
+
+    showState(successState);
+  });
+
+  sendAnotherButton.addEventListener("click", function () {
+    leadForm.reset();
+    insuredDates = [""];
+    renderInsuredList();
+    showState(formState);
+  });
+
+  loadPartner();
+</script>
+
+</body>
+</html>
