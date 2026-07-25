@@ -187,6 +187,25 @@
   const SUPABASE_URL = "https://accmdxprsetsqsrepflq.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_tO9ZpUkCtyDc_yGuItEZfA_xtNRUOkI";
 
+  // Notificação push instantânea para o telemóvel, via ntfy.sh — usa um
+  // nome de canal longo e aleatório (não é um segredo forte, mas é
+  // suficiente já que a mensagem nunca contém dados sensíveis do
+  // cliente). Se falhar, não bloqueia o envio da lead — o alerta no
+  // Dashboard do CRM já foi gravado na mesma.
+  const NTFY_TOPIC = "segurcrm-lead-67e3e06d7d78";
+
+  async function sendNtfyAlert(title, message) {
+    try {
+      await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+        method: "POST",
+        body: message,
+        headers: { Title: title, Priority: "high" },
+      });
+    } catch (err) {
+      console.log("Não foi possível enviar a notificação push:", err.message);
+    }
+  }
+
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const params = new URLSearchParams(window.location.search);
@@ -387,6 +406,11 @@
     }
 
     await createLeadDashboardAlert(clientName, clientPhone, clientEmail, parsedDates);
+
+    await sendNtfyAlert(
+      "➕ Nova lead — Saúde",
+      `${clientName} — via ${currentPartner.name}`
+    );
 
     submitButton.disabled = false;
     submitButton.textContent = "Pedir simulação";
