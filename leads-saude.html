@@ -196,10 +196,15 @@
 
   async function sendNtfyAlert(title, message) {
     try {
+      // Os cabeçalhos HTTP só aceitam caracteres Latin-1 (sem emoji nem
+      // travessões longos) — filtra qualquer coisa fora desse intervalo
+      // para o pedido nunca falhar silenciosamente por causa disso.
+      const safeTitle = String(title || "").replace(/[^\x00-\xFF]/g, "");
+
       await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
         method: "POST",
         body: message,
-        headers: { Title: title, Priority: "high" },
+        headers: { Title: safeTitle, Priority: "high" },
       });
     } catch (err) {
       console.log("Não foi possível enviar a notificação push:", err.message);
@@ -408,8 +413,8 @@
     await createLeadDashboardAlert(clientName, clientPhone, clientEmail, parsedDates);
 
     await sendNtfyAlert(
-      "➕ Nova lead — Saúde",
-      `${clientName} — via ${currentPartner.name}`
+      "Nova lead - Saude",
+      `${clientName} - via ${currentPartner.name}`
     );
 
     submitButton.disabled = false;
