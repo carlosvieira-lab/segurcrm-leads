@@ -236,7 +236,10 @@
     showState(formState);
   }
 
-  async function createLeadDashboardAlert(clientName, phone, email, capitalAmount) {
+  // linkUrl (opcional): quando presente, o Dashboard do CRM mostra um
+  // botão que abre diretamente o cartão desta lead na página de
+  // Parceiros Vida.
+  async function createLeadDashboardAlert(clientName, phone, email, capitalAmount, linkUrl) {
     const today = new Date().toISOString().split("T")[0];
 
     const notesLines = [
@@ -253,6 +256,7 @@
       notes: notesLines.join("\n"),
       status: "pendente",
       google_calendar_created: false,
+      link_url: linkUrl || null,
       updated_at: new Date().toISOString(),
     });
 
@@ -279,15 +283,19 @@
     submitButton.disabled = true;
     submitButton.textContent = "A enviar...";
 
-    const { error } = await supabaseClient.from("partner_leads").insert({
-      partner_id: currentPartner.id,
-      client_name: clientName,
-      client_phone: clientPhone,
-      client_email: clientEmail,
-      capital_amount: capitalAmount,
-      status: "novo",
-      events: [],
-    });
+    const { data: newLead, error } = await supabaseClient
+      .from("partner_leads")
+      .insert({
+        partner_id: currentPartner.id,
+        client_name: clientName,
+        client_phone: clientPhone,
+        client_email: clientEmail,
+        capital_amount: capitalAmount,
+        status: "novo",
+        events: [],
+      })
+      .select()
+      .single();
 
     if (error) {
       submitButton.disabled = false;
@@ -297,7 +305,9 @@
       return;
     }
 
-    await createLeadDashboardAlert(clientName, clientPhone, clientEmail, capitalAmount);
+    const leadLinkUrl = newLead && newLead.id ? `/parceiros?lead=${newLead.id}` : null;
+
+    await createLeadDashboardAlert(clientName, clientPhone, clientEmail, capitalAmount, leadLinkUrl);
 
     await sendNtfyAlert(
       "Nova lead - Vida",
