@@ -38,6 +38,26 @@
     margin-top: 12px;
     line-height: 1.6;
   }
+  .checklist {
+    list-style: none;
+    padding: 0;
+    margin: 14px 0 0;
+    display: grid;
+    gap: 6px;
+  }
+  .checklist li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #111827;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .checklist li::before {
+    content: "✔";
+    color: #16a34a;
+    font-weight: bold;
+  }
   form {
     display: grid;
     gap: 14px;
@@ -106,9 +126,17 @@
   </div>
 
   <div id="formState" class="hidden">
-    <h1>Pedido de Simulação — Seguro <span class="branch-word">🚗 Automóvel</span></h1>
+    <h1>Descubra se está a pagar demasiado pelo seguro do seu <span class="branch-word">veículo</span></h1>
+
+    <ul class="checklist">
+      <li>Sem compromisso</li>
+      <li>Resposta rápida</li>
+      <li>Mais de 30 anos no mercado</li>
+      <li>Mais de 1000 clientes com seguro automóvel</li>
+    </ul>
+
     <p class="desc">
-      Preenche os teus dados para receberes uma simulação de seguro automóvel, sem compromisso.
+      Os dados pedidos em baixo são fundamentais para fazermos uma simulação rigorosa.
     </p>
 
     <form id="leadForm">
