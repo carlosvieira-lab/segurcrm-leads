@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="pt">
 <head>
 <meta charset="UTF-8" />
@@ -128,52 +128,52 @@
 </style>
 </head>
 <body>
-
+ 
 <div class="card" id="app">
   <div id="loadingState">
     <h1>A carregar...</h1>
   </div>
-
+ 
   <div id="invalidState" class="hidden">
     <h1>Link inválido</h1>
     <p class="desc">Não foi possível encontrar este link. Confirma o link com quem to enviou.</p>
   </div>
-
+ 
   <div id="formState" class="hidden">
     <h1>Pedido de Simulação — Seguro de <span class="branch-word">➕ Saúde</span></h1>
     <p class="desc">
       Preenche os teus dados e das pessoas a segurar para receberes uma simulação, sem compromisso.
     </p>
-
+ 
     <form id="leadForm">
       <label>
         Nome *
         <input type="text" id="clientName" placeholder="Nome completo" required />
       </label>
-
+ 
       <label>
         Telemóvel *
         <input type="tel" id="clientPhone" placeholder="Telemóvel" required />
       </label>
-
+ 
       <label>
         Email *
         <input type="email" id="clientEmail" placeholder="Email" required />
       </label>
-
+ 
       <label>
         Data de nascimento de cada pessoa a segurar * <span class="field-hint">(DD-MM-AAAA)</span>
         <div class="insured-list" id="insuredList"></div>
       </label>
-
+ 
       <button type="button" class="add-date-button" id="addDateButton">+ Adicionar outra pessoa</button>
-
+ 
       <button type="submit" id="submitButton">Pedir simulação</button>
     </form>
-
+ 
     <div id="errorBox" class="error-box hidden"></div>
   </div>
-
+ 
   <div id="successState" class="hidden">
     <h1>✅ Pedido enviado</h1>
     <p class="desc">
@@ -182,25 +182,25 @@
     <button type="button" id="sendAnotherButton">Enviar outro pedido</button>
   </div>
 </div>
-
+ 
 <script>
   const SUPABASE_URL = "https://accmdxprsetsqsrepflq.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_tO9ZpUkCtyDc_yGuItEZfA_xtNRUOkI";
-
+ 
   // Notificação push instantânea para o telemóvel, via ntfy.sh — usa um
   // nome de canal longo e aleatório (não é um segredo forte, mas é
   // suficiente já que a mensagem nunca contém dados sensíveis do
   // cliente). Se falhar, não bloqueia o envio da lead — o alerta no
   // Dashboard do CRM já foi gravado na mesma.
   const NTFY_TOPIC = "segurcrm-lead-67e3e06d7d78";
-
+ 
   async function sendNtfyAlert(title, message) {
     try {
       // Os cabeçalhos HTTP só aceitam caracteres Latin-1 (sem emoji nem
       // travessões longos) — filtra qualquer coisa fora desse intervalo
       // para o pedido nunca falhar silenciosamente por causa disso.
       const safeTitle = String(title || "").replace(/[^\x00-\xFF]/g, "");
-
+ 
       await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
         method: "POST",
         body: message,
@@ -210,12 +210,12 @@
       console.log("Não foi possível enviar a notificação push:", err.message);
     }
   }
-
+ 
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+ 
   const params = new URLSearchParams(window.location.search);
   const partnerId = params.get("id");
-
+ 
   const loadingState = document.getElementById("loadingState");
   const invalidState = document.getElementById("invalidState");
   const formState = document.getElementById("formState");
@@ -226,12 +226,12 @@
   const sendAnotherButton = document.getElementById("sendAnotherButton");
   const insuredList = document.getElementById("insuredList");
   const addDateButton = document.getElementById("addDateButton");
-
+ 
   // Guardado apenas internamente (nunca mostrado no ecrã) — usado só
   // para associar o pedido ao parceiro certo e avisar o Carlos.
   let currentPartner = null;
   let insuredDates = [""];
-
+ 
   function showState(state) {
     loadingState.classList.add("hidden");
     invalidState.classList.add("hidden");
@@ -239,39 +239,68 @@
     successState.classList.add("hidden");
     state.classList.remove("hidden");
   }
-
-  // Aceita "21-01-1971" (também "21/01/1971" ou "21.01.1971") e
-  // devolve "1971-01-21" (formato que a base de dados espera), ou null
-  // se a data não for válida.
-  function parseDateBr(text) {
-    const value = String(text || "").trim();
-    const match = value.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-
-    if (!match) return null;
-
-    const day = Number(match[1]);
-    const month = Number(match[2]);
-    const year = Number(match[3]);
-
+ 
+  // Aceita "21-01-1971" (também "21/01/1971" ou "21.01.1971"), ou os 8
+  // dígitos seguidos "21011971" sem separadores — e devolve tanto o
+  // formato ISO (para gravar na base de dados) como o formato de
+  // apresentação DD-MM-AAAA (para reescrever no campo assim que a
+  // pessoa sai dele), ou null se a data não for válida.
+  function parseDateFlexible(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return null;
+ 
+    let day, month, year;
+ 
+    const withSeparators = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+ 
+    if (withSeparators) {
+      day = Number(withSeparators[1]);
+      month = Number(withSeparators[2]);
+      year = Number(withSeparators[3]);
+    } else if (/^\d{8}$/.test(raw)) {
+      day = Number(raw.slice(0, 2));
+      month = Number(raw.slice(2, 4));
+      year = Number(raw.slice(4, 8));
+    } else {
+      return null;
+    }
+ 
     if (month < 1 || month > 12) return null;
     if (day < 1 || day > 31) return null;
     if (year < 1900 || year > 2100) return null;
-
+ 
     const date = new Date(year, month - 1, day);
     if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
       return null;
     }
-
-    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+ 
+    return {
+      iso: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      display: `${String(day).padStart(2, "0")}-${String(month).padStart(2, "0")}-${year}`,
+    };
   }
-
+ 
+  // Assim que a pessoa sai do campo, se a data escrita for válida,
+  // reescreve o campo já no formato DD-MM-AAAA (mesmo que ela tenha
+  // escrito sem traços, ex: "21011971").
+  function attachDateAutoFormat(inputEl) {
+    if (!inputEl) return;
+ 
+    inputEl.addEventListener("blur", function () {
+      const parsed = parseDateFlexible(inputEl.value);
+      if (parsed) {
+        inputEl.value = parsed.display;
+      }
+    });
+  }
+ 
   function renderInsuredList() {
     insuredList.innerHTML = "";
-
+ 
     insuredDates.forEach(function (value, index) {
       const row = document.createElement("div");
       row.className = "insured-row";
-
+ 
       const input = document.createElement("input");
       input.type = "text";
       input.placeholder = "Ex: 21-01-1971";
@@ -280,9 +309,10 @@
       input.addEventListener("input", function (e) {
         insuredDates[index] = e.target.value;
       });
-
+      attachDateAutoFormat(input);
+ 
       row.appendChild(input);
-
+ 
       if (insuredDates.length > 1) {
         const removeButton = document.createElement("button");
         removeButton.type = "button";
@@ -295,53 +325,53 @@
         });
         row.appendChild(removeButton);
       }
-
+ 
       insuredList.appendChild(row);
     });
   }
-
+ 
   addDateButton.addEventListener("click", function () {
     insuredDates.push("");
     renderInsuredList();
   });
-
+ 
   renderInsuredList();
-
+ 
   async function loadPartner() {
     if (!partnerId) {
       showState(invalidState);
       return;
     }
-
+ 
     const { data, error } = await supabaseClient
       .from("partners")
       .select("id, name, email")
       .eq("id", partnerId)
       .eq("team", "saude")
       .maybeSingle();
-
+ 
     if (error || !data) {
       showState(invalidState);
       return;
     }
-
+ 
     currentPartner = data;
     showState(formState);
   }
-
+ 
   // linkUrl (opcional): quando presente, o Dashboard do CRM mostra um
   // botão que abre diretamente o cartão desta lead na página de
   // Parceiros Saúde.
   async function createLeadDashboardAlert(clientName, phone, email, filledDates, linkUrl) {
     const today = new Date().toISOString().split("T")[0];
-
+ 
     const notesLines = [
       `Parceiro (Saúde): ${currentPartner.name || "-"}`,
       `Telemóvel: ${phone || "-"}`,
       `Email: ${email || "-"}`,
       `Pessoas a segurar: ${filledDates.length}`,
     ];
-
+ 
     const { error } = await supabaseClient.from("dashboard_alerts").insert({
       title: `➕ Novo lead saúde de parceiro: ${clientName || "Cliente"}`,
       alert_date: today,
@@ -352,50 +382,50 @@
       link_url: linkUrl || null,
       updated_at: new Date().toISOString(),
     });
-
+ 
     if (error) {
       console.log("Não foi possível criar o alerta do dashboard:", error.message);
     }
   }
-
+ 
   leadForm.addEventListener("submit", async function (event) {
     event.preventDefault();
     errorBox.classList.add("hidden");
-
+ 
     const clientName = document.getElementById("clientName").value.trim();
     const clientPhone = document.getElementById("clientPhone").value.trim();
     const clientEmail = document.getElementById("clientEmail").value.trim();
     const rawDates = insuredDates.filter(Boolean);
-
+ 
     if (!clientName || !clientPhone || !clientEmail) {
       errorBox.textContent = "Nome, telemóvel e email são obrigatórios.";
       errorBox.classList.remove("hidden");
       return;
     }
-
+ 
     if (rawDates.length === 0) {
       errorBox.textContent = "Indica a data de nascimento de pelo menos uma pessoa a segurar.";
       errorBox.classList.remove("hidden");
       return;
     }
-
+ 
     const parsedDates = [];
-
+ 
     for (const rawDate of rawDates) {
-      const parsed = parseDateBr(rawDate);
-
+      const parsed = parseDateFlexible(rawDate);
+ 
       if (!parsed) {
         errorBox.textContent = `A data "${rawDate}" não é válida. Usa o formato DD-MM-AAAA (ex: 21-01-1971).`;
         errorBox.classList.remove("hidden");
         return;
       }
-
-      parsedDates.push(parsed);
+ 
+      parsedDates.push(parsed.iso);
     }
-
+ 
     submitButton.disabled = true;
     submitButton.textContent = "A enviar...";
-
+ 
     const { data: newLead, error } = await supabaseClient
       .from("saude_partner_leads")
       .insert({
@@ -409,7 +439,7 @@
       })
       .select()
       .single();
-
+ 
     if (error) {
       submitButton.disabled = false;
       submitButton.textContent = "Pedir simulação";
@@ -417,31 +447,32 @@
       errorBox.classList.remove("hidden");
       return;
     }
-
+ 
     const leadLinkUrl = newLead && newLead.id ? `/parceiros-saude?lead=${newLead.id}` : null;
-
+ 
     await createLeadDashboardAlert(clientName, clientPhone, clientEmail, parsedDates, leadLinkUrl);
-
+ 
     await sendNtfyAlert(
       "Nova lead - Saude",
       `${clientName} - via ${currentPartner.name}`
     );
-
+ 
     submitButton.disabled = false;
     submitButton.textContent = "Pedir simulação";
-
+ 
     showState(successState);
   });
-
+ 
   sendAnotherButton.addEventListener("click", function () {
     leadForm.reset();
     insuredDates = [""];
     renderInsuredList();
     showState(formState);
   });
-
+ 
   loadPartner();
 </script>
-
+ 
 </body>
 </html>
+ 
