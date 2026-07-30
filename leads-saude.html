@@ -151,6 +151,32 @@
     display: grid;
     gap: 10px;
   }
+  .who-fieldset {
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 12px 13px;
+    display: grid;
+    gap: 8px;
+    margin: 0;
+  }
+  .who-legend {
+    padding: 0 4px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #374151;
+  }
+  .who-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    color: #374151;
+    font-size: 14px;
+  }
+  .who-option input {
+    width: auto;
+    padding: 0;
+  }
 </style>
 </head>
 <body>
@@ -181,6 +207,20 @@
     </p>
 
     <form id="leadForm">
+      <fieldset class="who-fieldset">
+        <legend class="who-legend">Estes dados são seus? *</legend>
+
+        <label class="who-option">
+          <input type="radio" name="filledBy" id="filledByClient" value="client" required />
+          Estes dados são meus
+        </label>
+
+        <label class="who-option">
+          <input type="radio" name="filledBy" id="filledByOther" value="other" required />
+          Estou a preencher por outra pessoa
+        </label>
+      </fieldset>
+
       <label>
         Nome *
         <input type="text" id="clientName" placeholder="Nome completo" required />
@@ -427,10 +467,17 @@
     event.preventDefault();
     errorBox.classList.add("hidden");
 
+    const filledByChecked = document.querySelector('input[name="filledBy"]:checked');
     const clientName = document.getElementById("clientName").value.trim();
     const clientPhone = document.getElementById("clientPhone").value.trim();
     const clientEmail = document.getElementById("clientEmail").value.trim();
     const rawDates = insuredDates.filter(Boolean);
+
+    if (!filledByChecked) {
+      errorBox.textContent = "Indica se estes dados são teus ou se estás a preencher por outra pessoa.";
+      errorBox.classList.remove("hidden");
+      return;
+    }
 
     if (!clientName || !clientPhone || !clientEmail) {
       errorBox.textContent = "Nome, telemóvel e email são obrigatórios.";
@@ -469,6 +516,7 @@
         client_phone: clientPhone,
         client_email: clientEmail,
         insured_birth_dates: parsedDates,
+        filled_by_client: filledByChecked.value === "client",
         status: "novo",
         events: [],
       })
@@ -510,5 +558,3 @@
 
 </body>
 </html>
-
- 
