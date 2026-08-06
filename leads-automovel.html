@@ -507,43 +507,49 @@
     submitButton.disabled = true;
     submitButton.textContent = "A enviar...";
 
-    // O id é gerado aqui, no browser, e enviado explicitamente no
-    // insert — assim já sabemos o id do lead sem precisar de o ler de
-    // volta a seguir (.select()), que exigiria abrir uma política de
-    // leitura pública nesta tabela (o que exporia os dados de todos os
-    // outros leads a qualquer visitante anónimo). O Postgres aceita o
-    // valor explícito mesmo havendo um valor por omissão na coluna.
-    const newLeadId = crypto.randomUUID();
+    // Deixou de escrever diretamente na tabela — passa por uma rota do
+    // CRM (com service_role) que verifica primeiro se o parceiro está
+    // suspenso por inatividade antes de aceitar o lead.
+    const CRM_API_URL = "https://crm.sisegcvieira.com/api/parceiros-automovel/leads/criar-publica";
 
-    const { error } = await supabaseClient
-      .from("auto_partner_leads")
-      .insert({
-        id: newLeadId,
-        partner_id: currentPartner.id,
-        client_name: clientName,
-        client_phone: clientPhone,
-        client_email: clientEmail,
-        nif: clientNif,
-        postal_code: postalCode,
-        birth_date: birthDateParsed.iso,
-        license_start_date: licenseStartDateParsed.iso,
-        license_plate: licensePlate,
-        filled_by_client: filledByChecked.value === "client",
-        status: "novo",
-        events: [],
+    try {
+      const response = await fetch(CRM_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partner_id: currentPartner.id,
+          client_name: clientName,
+          client_phone: clientPhone,
+          client_email: clientEmail,
+          nif: clientNif,
+          postal_code: postalCode,
+          birth_date: birthDateParsed.iso,
+          license_start_date: licenseStartDateParsed.iso,
+          license_plate: licensePlate,
+          filled_by_client: filledByChecked.value === "client",
+        }),
       });
 
-    if (error) {
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        submitButton.disabled = false;
+        submitButton.textContent = "Pedir simulação";
+        errorBox.textContent = result.error || "Não foi possível enviar o pedido.";
+        errorBox.classList.remove("hidden");
+        return;
+      }
+    } catch (err) {
       submitButton.disabled = false;
       submitButton.textContent = "Pedir simulação";
-      errorBox.textContent = error.message;
+      errorBox.textContent = "Não foi possível enviar o pedido. Verifica a ligação e tenta novamente.";
       errorBox.classList.remove("hidden");
       return;
     }
 
-    const leadLinkUrl = `/parceiros-automovel?lead=${newLeadId}`;
-
-    await createLeadDashboardAlert(clientName, clientPhone, clientEmail, clientNif, postalCode, leadLinkUrl);
+    // O alerta do Dashboard já foi criado do lado do servidor pela
+    // rota /api/parceiros-automovel/leads/criar-publica — não é
+    // preciso repetir aqui.
 
     await sendNtfyAlert(
       "Nova lead - Automovel",
