@@ -508,9 +508,18 @@
     submitButton.disabled = true;
     submitButton.textContent = "A enviar...";
 
-    const { data: newLead, error } = await supabaseClient
+    // O id é gerado aqui, no browser, e enviado explicitamente no
+    // insert — assim já sabemos o id do lead sem precisar de o ler de
+    // volta a seguir (.select()), que exigiria abrir uma política de
+    // leitura pública nesta tabela (o que exporia os dados de todos os
+    // outros leads a qualquer visitante anónimo). O Postgres aceita o
+    // valor explícito mesmo havendo um valor por omissão na coluna.
+    const newLeadId = crypto.randomUUID();
+
+    const { error } = await supabaseClient
       .from("saude_partner_leads")
       .insert({
+        id: newLeadId,
         partner_id: currentPartner.id,
         client_name: clientName,
         client_phone: clientPhone,
@@ -519,9 +528,7 @@
         filled_by_client: filledByChecked.value === "client",
         status: "novo",
         events: [],
-      })
-      .select()
-      .single();
+      });
 
     if (error) {
       submitButton.disabled = false;
@@ -531,7 +538,7 @@
       return;
     }
 
-    const leadLinkUrl = newLead && newLead.id ? `/parceiros-saude?lead=${newLead.id}` : null;
+    const leadLinkUrl = `/parceiros-saude?lead=${newLeadId}`;
 
     await createLeadDashboardAlert(clientName, clientPhone, clientEmail, parsedDates, leadLinkUrl);
 
