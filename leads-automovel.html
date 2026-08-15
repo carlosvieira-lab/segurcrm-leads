@@ -424,6 +424,7 @@
 
     const { error } = await supabaseClient.from("dashboard_alerts").insert({
       title: `🚗 Novo lead automóvel de parceiro: ${clientName || "Cliente"}`,
+      partner_id: currentPartner.id,
       alert_date: today,
       alert_time: null,
       notes: notesLines.join("\n"),
