@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pedido de Crédito</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(135deg,#edf5ff,#f8fbff);color:#17324d;min-height:100vh;padding:28px 16px}.wrap{max-width:620px;margin:auto}.card{background:white;border-radius:22px;padding:30px;box-shadow:0 12px 35px rgba(23,50,77,.12)}.brand{font-size:18px;font-weight:800;color:#1769aa;margin-bottom:20px}.bar{height:7px;background:#e8eef5;border-radius:8px;overflow:hidden;margin-bottom:28px}.bar span{display:block;height:100%;width:25%;background:#1769aa;transition:.3s}h1{font-size:28px;margin:0 0 10px}.sub{color:#687c8e;line-height:1.5;margin:0 0 24px}.q{font-size:19px;font-weight:700;margin-bottom:14px}.options{display:grid;gap:12px}.option{border:2px solid #e1e8ef;border-radius:14px;padding:17px;cursor:pointer;transition:.2s}.option:hover,.option.selected{border-color:#1769aa;background:#f0f8ff}.option strong{display:block;font-size:16px}.option small{display:block;color:#718292;margin-top:5px}.btn{width:100%;border:0;border-radius:13px;padding:16px;margin-top:24px;background:#1769aa;color:white;font-size:17px;font-weight:700;cursor:pointer}.btn:disabled{opacity:.45;cursor:not-allowed}.back{background:none;border:0;color:#1769aa;font-weight:700;cursor:pointer;margin-top:18px}.hidden{display:none}label{display:block;font-weight:700;margin:15px 0 7px}input{width:100%;padding:14px;border:2px solid #e1e8ef;border-radius:11px;font-size:16px;outline:none}input:focus{border-color:#1769aa}.note{font-size:12px;color:#718292;line-height:1.45;margin-top:15px}.success{text-align:center;padding:30px 0}.success .ico{font-size:48px}.error-box{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-top:14px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card" id="app">
+
+<div id="loadingState">
+  <div class="brand">PEDIDO DE CRÉDITO</div>
+  <h1>A carregar...</h1>
+</div>
+
+<div id="invalidState" class="hidden">
+  <div class="brand">PEDIDO DE CRÉDITO</div>
+  <h1>Link inválido</h1>
+  <p class="sub">Não foi possível encontrar este link. Confirma o link com quem to enviou.</p>
+</div>
+
+<div id="mainState" class="hidden">
+<div class="brand">PEDIDO DE CRÉDITO</div>
+<div class="bar"><span id="bar"></span></div>
+
+<section id="s1">
+<h1>Vamos começar</h1>
+<p class="sub">Indique-nos o que procura. É rápido e sem compromisso.</p>
+<div class="q">Que tipo de crédito procura?</div>
+<div class="options">
+<div class="option" onclick="credit(this,'habitacao')"><strong>🏠 Crédito Habitação / Hipotecário</strong><small>Comprar, construir, fazer obras ou reduzir o que paga</small></div>
+<div class="option" onclick="credit(this,'auto')"><strong>🚗 Crédito Automóvel</strong><small>Para comprar ou trocar de veículo</small></div>
+<div class="option" onclick="credit(this,'pessoal')"><strong>💶 Crédito Pessoal</strong><small>Financiamento para o que precisar</small></div>
+</div>
+<button class="btn" id="b1" disabled onclick="step(2)">Continuar</button>
+</section>
+
+<section id="s2" class="hidden">
+<h1>Qual é o seu objetivo?</h1>
+<p class="sub">Escolha a opção que melhor corresponde ao que pretende.</p>
+<div class="options" id="opts"></div>
+<button class="btn" id="b2" disabled onclick="step(3)">Continuar</button>
+<button class="back" onclick="step(1)">← Voltar</button>
+</section>
+
+<section id="s3" class="hidden">
+<h1>Quase terminado</h1>
+<p class="sub">Deixe-nos os seus dados e entraremos em contacto consigo.</p>
+<label>Nome</label><input id="name" placeholder="Nome completo">
+<label>Telemóvel</label><input id="phone" type="tel" placeholder="9XX XXX XXX">
+<label>Email</label><input id="email" type="email" placeholder="email@exemplo.pt">
+<button class="btn" id="submitButton" onclick="send()">Enviar pedido</button>
+<button class="back" onclick="step(2)">← Voltar</button>
+<div id="errorBox" class="error-box hidden"></div>
+<p class="note">Os dados serão tratados de acordo com a política de privacidade aplicável. Os textos de consentimento devem ser ajustados ao processo da empresa.</p>
+</section>
+
+<section id="ok" class="hidden success">
+<div class="ico">✅</div><h1>Pedido enviado!</h1>
+<p class="sub">Obrigado. Entraremos em contacto consigo brevemente.</p>
+</section>
+</div>
+
+</div></div>
+
+<script>
+  // Endpoint do CRM que recebe este formulário (rota pública, protegida
+  // por CORS ao domínio deste ficheiro). Substitui o comportamento
+  // anterior, que só simulava o envio sem gravar nada em lado nenhum.
+  const CRM_ENDPOINT = "https://crm.sisegcvieira.com/api/parceiros-credito/leads/criar-publica";
+
+  const params = new URLSearchParams(window.location.search);
+  const partnerId = params.get("id");
+
+  const loadingState = document.getElementById("loadingState");
+  const invalidState = document.getElementById("invalidState");
+  const mainState = document.getElementById("mainState");
+  const errorBox = document.getElementById("errorBox");
+  const submitButton = document.getElementById("submitButton");
+
+  let c = '', p = '';
+
+  function showState(state) {
+    loadingState.classList.add("hidden");
+    invalidState.classList.add("hidden");
+    mainState.classList.add("hidden");
+    state.classList.remove("hidden");
+  }
+
+  // Confirma que o link tem um parceiro válido antes de mostrar o
+  // formulário — mesmo princípio já usado nos formulários de
+  // Automóvel/Vida/Saúde, só que aqui a verificação em si (existência
+  // do parceiro) é feita no servidor, no momento do envio, para não
+  // precisar de expor a tabela financial_partners a leitura pública
+  // anónima só para validar o link antecipadamente.
+  if (!partnerId) {
+    showState(invalidState);
+  } else {
+    showState(mainState);
+  }
+
+  function credit(el, v) {
+    document.querySelectorAll('#s1 .option').forEach(x => x.classList.remove('selected'));
+    el.classList.add('selected');
+    c = v;
+    document.getElementById('b1').disabled = false;
+  }
+
+  function step(n) {
+    document.querySelectorAll('#mainState section').forEach(x => x.classList.add('hidden'));
+    document.getElementById('s' + n).classList.remove('hidden');
+    document.getElementById('bar').style.width = n == 1 ? '25%' : n == 2 ? '60%' : '90%';
+
+    if (n == 2) {
+      let a = c == 'habitacao' ?
+        [['comprar', '🏠 Comprar uma casa'], ['construir', '🏗️ Construir uma casa'], ['obras', '🔨 Fazer obras'], ['baixar', '💰 Baixar o que pago atualmente']] :
+        c == 'auto' ?
+        [['comprar_auto', '🚗 Comprar um automóvel'], ['trocar_auto', '🔄 Trocar de automóvel']] :
+        [['financiamento', '💶 Preciso de financiamento'], ['reorganizar', '📉 Reduzir / reorganizar créditos']];
+
+      document.getElementById('opts').innerHTML = a.map(x => `<div class="option" onclick="purpose(this,'${x[0]}')"><strong>${x[1]}</strong></div>`).join('');
+      document.getElementById('b2').disabled = true;
+    }
+  }
+
+  function purpose(el, v) {
+    document.querySelectorAll('#opts .option').forEach(x => x.classList.remove('selected'));
+    el.classList.add('selected');
+    p = v;
+    document.getElementById('b2').disabled = false;
+  }
+
+  async function send() {
+    errorBox.classList.add("hidden");
+
+    const name = document.getElementById('name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const email = document.getElementById('email').value.trim();
+
+    if (!name || !phone) {
+      errorBox.textContent = "Preencha o nome e o telemóvel.";
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "A enviar...";
+
+    try {
+      const response = await fetch(CRM_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partner_id: partnerId,
+          client_name: name,
+          client_phone: phone,
+          client_email: email,
+          credit_type: c,
+          purpose: p,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        submitButton.disabled = false;
+        submitButton.textContent = "Enviar pedido";
+        errorBox.textContent = result.error || "Não foi possível enviar o pedido. Tenta novamente.";
+        errorBox.classList.remove("hidden");
+        return;
+      }
+    } catch (err) {
+      submitButton.disabled = false;
+      submitButton.textContent = "Enviar pedido";
+      errorBox.textContent = "Erro de ligação. Verifica a internet e tenta novamente.";
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    document.querySelectorAll('#mainState section').forEach(x => x.classList.add('hidden'));
+    document.getElementById('ok').classList.remove('hidden');
+    document.getElementById('bar').style.width = '100%';
+  }
+</script>
+</body>
+</html>
