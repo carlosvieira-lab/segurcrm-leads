@@ -228,7 +228,7 @@
 
       <label>
         Telemóvel *
-        <input type="tel" id="clientPhone" placeholder="Telemóvel" required />
+        <input type="tel" id="clientPhone" placeholder="Telemóvel (ex: 912 345 678)" inputmode="numeric" required />
       </label>
 
       <label>
@@ -463,6 +463,15 @@
     }
   }
 
+    // Telemóvel português: 9 dígitos a começar por 91, 92, 93 ou 96.
+  // Aceita espaços, hífens e o prefixo +351 / 00351 / 351.
+  function normalizePtMobile(value) {
+    let digits = String(value || "").replace(/\D/g, "");
+    if (digits.startsWith("00351")) digits = digits.slice(5);
+    else if (digits.startsWith("351") && digits.length === 12) digits = digits.slice(3);
+    return /^9[1236]\d{7}$/.test(digits) ? digits : "";
+  }
+
   leadForm.addEventListener("submit", async function (event) {
     event.preventDefault();
     errorBox.classList.add("hidden");
@@ -482,6 +491,16 @@
     if (!clientName || !clientPhone || !clientEmail) {
       errorBox.textContent = "Nome, telemóvel e email são obrigatórios.";
       errorBox.classList.remove("hidden");
+      return;
+    }
+
+    const normalizedPhone = normalizePtMobile(clientPhone);
+
+    if (!normalizedPhone) {
+      errorBox.textContent =
+        "Telemóvel inválido. Indica um número com 9 dígitos, a começar por 91, 92, 93 ou 96.";
+      errorBox.classList.remove("hidden");
+      document.getElementById("clientPhone").focus();
       return;
     }
 
@@ -522,7 +541,7 @@
         id: newLeadId,
         partner_id: currentPartner.id,
         client_name: clientName,
-        client_phone: clientPhone,
+        client_phone: normalizedPhone,
         client_email: clientEmail,
         insured_birth_dates: parsedDates,
         filled_by_client: filledByChecked.value === "client",
@@ -540,7 +559,7 @@
 
     const leadLinkUrl = `/parceiros-saude?lead=${newLeadId}`;
 
-    await createLeadDashboardAlert(clientName, clientPhone, clientEmail, parsedDates, leadLinkUrl);
+    await createLeadDashboardAlert(clientName, normalizedPhone, clientEmail, parsedDates, leadLinkUrl);
 
     await sendNtfyAlert(
       "Nova lead - Saude",
