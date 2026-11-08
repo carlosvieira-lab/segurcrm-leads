@@ -267,6 +267,10 @@
 
   const params = new URLSearchParams(window.location.search);
   const partnerId = params.get("id");
+  // "r" (opcional, escondido no link): id da lead que recomendou. Só serve para o
+  // CRM saber quem recomendou — nunca é mostrado nem pedido a quem preenche.
+  const referredByRaw = params.get("r") || "";
+  const referredByLeadId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(referredByRaw) ? referredByRaw : null;
 
   const loadingState = document.getElementById("loadingState");
   const invalidState = document.getElementById("invalidState");
@@ -535,23 +539,31 @@
     // valor explícito mesmo havendo um valor por omissão na coluna.
     const newLeadId = crypto.randomUUID();
 
-    const { error } = await supabaseClient
+    const leadPayload = {
+      id: newLeadId,
+      partner_id: currentPartner.id,
+      client_name: clientName,
+      client_phone: normalizedPhone,
+      client_email: clientEmail,
+      nif: clientNif,
+      postal_code: postalCode,
+      birth_date: birthDateParsed.iso,
+      license_start_date: licenseStartDateParsed.iso,
+      license_plate: licensePlate,
+      filled_by_client: filledByChecked.value === "client",
+      status: "novo",
+      events: [],
+    };
+
+    let { error } = await supabaseClient
       .from("auto_partner_leads")
-      .insert({
-        id: newLeadId,
-        partner_id: currentPartner.id,
-        client_name: clientName,
-        client_phone: normalizedPhone,
-        client_email: clientEmail,
-        nif: clientNif,
-        postal_code: postalCode,
-        birth_date: birthDateParsed.iso,
-        license_start_date: licenseStartDateParsed.iso,
-        license_plate: licensePlate,
-        filled_by_client: filledByChecked.value === "client",
-        status: "novo",
-        events: [],
-      });
+      .insert(referredByLeadId ? { ...leadPayload, referred_by_lead_id: referredByLeadId } : leadPayload);
+
+    // Se a lead que recomendou já não existir (código antigo), grava o pedido na mesma,
+    // sem a recomendação.
+    if (error && referredByLeadId && error.code === "23503") {
+      ({ error } = await supabaseClient.from("auto_partner_leads").insert(leadPayload));
+    }
 
     if (error) {
       submitButton.disabled = false;
