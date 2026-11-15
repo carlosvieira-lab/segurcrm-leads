@@ -137,6 +137,43 @@
     width: auto;
     padding: 0;
   }
+  textarea {
+    padding: 13px;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    font-size: 15px;
+    width: 100%;
+    min-height: 80px;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+  }
+  .stand-tag {
+    display: inline-block;
+    background: #fef3c7;
+    color: #78350f;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-top: 10px;
+  }
+  details.more-data {
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    border-radius: 10px;
+    padding: 12px 13px;
+  }
+  details.more-data summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #78350f;
+    font-size: 14px;
+  }
+  details.more-data .more-grid {
+    display: grid;
+    gap: 14px;
+    margin-top: 14px;
+  }
 </style>
 </head>
 <body>
@@ -226,6 +263,72 @@
     <div id="errorBox" class="error-box hidden"></div>
   </div>
 
+  <div id="standState" class="hidden">
+    <h1>Enviar cliente para simulação de seguro automóvel</h1>
+    <span class="stand-tag" id="standTag">Stand</span>
+
+    <form id="standForm">
+      <label>
+        Nome do cliente *
+        <input type="text" id="sName" placeholder="Nome completo" required />
+      </label>
+
+      <label>
+        Telemóvel do cliente *
+        <input type="tel" id="sPhone" placeholder="Telemóvel (ex: 912 345 678)" inputmode="numeric" required />
+      </label>
+
+      <label>
+        NIF do cliente *
+        <input type="text" id="sNif" placeholder="9 dígitos" maxlength="9" inputmode="numeric" required />
+      </label>
+
+      <label>
+        Matrícula *
+        <input type="text" id="sPlate" placeholder="00-AA-00" style="text-transform: uppercase;" required />
+      </label>
+
+      <label>
+        Data prevista de entrega da viatura <span class="field-hint">(opcional)</span>
+        <input type="date" id="sDelivery" />
+      </label>
+
+      <label>
+        Observações <span class="field-hint">(opcional: marca, modelo, se já tem seguro…)</span>
+        <textarea id="sNotes" placeholder="Ex: BMW Série 1, o cliente tem seguro até dia 30"></textarea>
+      </label>
+
+      <details class="more-data">
+        <summary>＋ Mais dados do cliente (se já os tiver)</summary>
+        <div class="more-grid">
+          <label>
+            Email
+            <input type="email" id="sEmail" placeholder="Email" />
+          </label>
+
+          <label>
+            Código postal
+            <input type="text" id="sPostal" placeholder="0000-000" inputmode="numeric" maxlength="8" />
+          </label>
+
+          <label>
+            Data de nascimento <span class="field-hint">(DD-MM-AAAA)</span>
+            <input type="text" id="sBirth" placeholder="Ex: 21-01-1971" inputmode="numeric" />
+          </label>
+
+          <label>
+            Data de início da carta de condução <span class="field-hint">(DD-MM-AAAA)</span>
+            <input type="text" id="sLicense" placeholder="Ex: 05-06-1995" inputmode="numeric" />
+          </label>
+        </div>
+      </details>
+
+      <button type="submit" id="standSubmit">Enviar cliente</button>
+    </form>
+
+    <div id="standErrorBox" class="error-box hidden"></div>
+  </div>
+
   <div id="successState" class="hidden">
     <h1>✅ Pedido enviado</h1>
     <p class="desc">
@@ -276,6 +379,11 @@
   const invalidState = document.getElementById("invalidState");
   const formState = document.getElementById("formState");
   const successState = document.getElementById("successState");
+  const standState = document.getElementById("standState");
+  const standForm = document.getElementById("standForm");
+  const standSubmit = document.getElementById("standSubmit");
+  const standErrorBox = document.getElementById("standErrorBox");
+  let isStandMode = false;
   const leadForm = document.getElementById("leadForm");
   const submitButton = document.getElementById("submitButton");
   const errorBox = document.getElementById("errorBox");
@@ -289,6 +397,7 @@
     loadingState.classList.add("hidden");
     invalidState.classList.add("hidden");
     formState.classList.add("hidden");
+    standState.classList.add("hidden");
     successState.classList.add("hidden");
     state.classList.remove("hidden");
   }
@@ -389,6 +498,10 @@
   attachDateAutoFormat(document.getElementById("licenseStartDate"));
   attachPostalCodeAutoFormat(document.getElementById("postalCode"));
   attachLicensePlateAutoFormat(document.getElementById("licensePlate"));
+  attachDateAutoFormat(document.getElementById("sBirth"));
+  attachDateAutoFormat(document.getElementById("sLicense"));
+  attachPostalCodeAutoFormat(document.getElementById("sPostal"));
+  attachLicensePlateAutoFormat(document.getElementById("sPlate"));
 
   async function loadPartner() {
     if (!partnerId) {
@@ -398,7 +511,7 @@
 
     const { data, error } = await supabaseClient
       .from("partners")
-      .select("id, name, email")
+      .select("id, name, email, is_stand")
       .eq("id", partnerId)
       .eq("team", "automovel")
       .maybeSingle();
@@ -409,6 +522,15 @@
     }
 
     currentPartner = data;
+
+    // Parceiro STAND: formulário curto, pensado para o vendedor.
+    if (data.is_stand) {
+      isStandMode = true;
+      document.getElementById("standTag").textContent = "🏪 Stand: " + (data.name || "");
+      showState(standState);
+      return;
+    }
+
     showState(formState);
   }
 
@@ -588,7 +710,141 @@
     showState(successState);
   });
 
+  async function createStandDashboardAlert(fields, linkUrl) {
+    const today = new Date().toISOString().split("T")[0];
+
+    const notesLines = [
+      `STAND: ${currentPartner.name || "-"}`,
+      `Telemóvel: ${fields.phone || "-"}`,
+      `NIF: ${fields.nif || "-"}`,
+      `Matrícula: ${fields.plate || "-"}`,
+      `Entrega prevista: ${fields.deliveryDisplay || "-"}`,
+      `Observações do stand: ${fields.notes || "-"}`,
+    ];
+
+    const { error } = await supabaseClient.from("dashboard_alerts").insert({
+      title: `🏪 STAND (prioridade) · Novo lead automóvel de parceiro: ${fields.name || "Cliente"}`,
+      partner_id: currentPartner.id,
+      alert_date: today,
+      alert_time: null,
+      notes: notesLines.join("\n"),
+      status: "pendente",
+      google_calendar_created: false,
+      link_url: linkUrl || null,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.log("Não foi possível criar o alerta do dashboard:", error.message);
+    }
+  }
+
+  function showStandError(message, focusId) {
+    standErrorBox.textContent = message;
+    standErrorBox.classList.remove("hidden");
+    if (focusId) document.getElementById(focusId).focus();
+  }
+
+  standForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    standErrorBox.classList.add("hidden");
+
+    const name = document.getElementById("sName").value.trim();
+    const phoneText = document.getElementById("sPhone").value.trim();
+    const nif = document.getElementById("sNif").value.trim();
+    const plate = document.getElementById("sPlate").value.trim().toUpperCase();
+    const deliveryIso = document.getElementById("sDelivery").value || null;
+    const notes = document.getElementById("sNotes").value.trim();
+    const email = document.getElementById("sEmail").value.trim();
+    const postal = document.getElementById("sPostal").value.trim();
+    const birthText = document.getElementById("sBirth").value.trim();
+    const licenseText = document.getElementById("sLicense").value.trim();
+
+    if (!name) return showStandError("Indica o nome do cliente.", "sName");
+
+    const phone = normalizePtMobile(phoneText);
+
+    if (!phone) {
+      return showStandError(
+        "Telemóvel inválido. Indica um número com 9 dígitos, a começar por 91, 92, 93 ou 96.",
+        "sPhone"
+      );
+    }
+
+    if (!/^\d{9}$/.test(nif)) return showStandError("O NIF deve ter 9 dígitos.", "sNif");
+
+    if (!/^[A-Z0-9]{2}-[A-Z0-9]{2}-[A-Z0-9]{2}$/.test(plate)) {
+      return showStandError("A matrícula deve estar no formato 00-AA-00.", "sPlate");
+    }
+
+    if (postal && !/^\d{4}-\d{3}$/.test(postal)) {
+      return showStandError("O código postal deve estar no formato 0000-000.", "sPostal");
+    }
+
+    const birth = birthText ? parseDateFlexible(birthText) : null;
+    if (birthText && !birth) {
+      return showStandError("A data de nascimento tem de estar no formato DD-MM-AAAA.", "sBirth");
+    }
+
+    const license = licenseText ? parseDateFlexible(licenseText) : null;
+    if (licenseText && !license) {
+      return showStandError("A data de início da carta tem de estar no formato DD-MM-AAAA.", "sLicense");
+    }
+
+    standSubmit.disabled = true;
+    standSubmit.textContent = "A enviar...";
+
+    const newLeadId = crypto.randomUUID();
+
+    const { error } = await supabaseClient.from("auto_partner_leads").insert({
+      id: newLeadId,
+      partner_id: currentPartner.id,
+      client_name: name,
+      client_phone: phone,
+      client_email: email || "",
+      nif: nif,
+      postal_code: postal || null,
+      birth_date: birth ? birth.iso : null,
+      license_start_date: license ? license.iso : null,
+      license_plate: plate,
+      delivery_date: deliveryIso,
+      partner_notes: notes || null,
+      filled_by_client: false,
+      status: "novo",
+      events: [],
+    });
+
+    standSubmit.disabled = false;
+    standSubmit.textContent = "Enviar cliente";
+
+    if (error) {
+      return showStandError(error.message);
+    }
+
+    const deliveryDisplay = deliveryIso ? deliveryIso.split("-").reverse().join("-") : "";
+
+    await createStandDashboardAlert(
+      { name, phone, nif, plate, deliveryDisplay, notes },
+      `/parceiros-automovel?lead=${newLeadId}`
+    );
+
+    await sendNtfyAlert("Nova lead - STAND", `${name} - via ${currentPartner.name}`);
+
+    document.querySelector("#successState h1").textContent = "✅ Cliente enviado!";
+    document.querySelector("#successState p.desc").textContent =
+      "Obrigado! Vou entrar em contacto com o cliente ainda hoje.";
+    sendAnotherButton.textContent = "Enviar outro cliente";
+
+    showState(successState);
+  });
+
   sendAnotherButton.addEventListener("click", function () {
+    if (isStandMode) {
+      standForm.reset();
+      showState(standState);
+      return;
+    }
+
     leadForm.reset();
     showState(formState);
   });
