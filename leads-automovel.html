@@ -509,12 +509,9 @@
       return;
     }
 
-    const { data, error } = await supabaseClient
-      .from("partners")
-      .select("id, name, email, is_stand")
-      .eq("id", partnerId)
-      .eq("team", "automovel")
-      .maybeSingle();
+    // Só devolve id, nome e se é stand (nunca telefone, email ou MB Way).
+    const { data: rows, error } = await supabaseClient.rpc("get_public_partner", { p_id: partnerId });
+    const data = Array.isArray(rows) ? rows[0] : rows;
 
     if (error || !data) {
       showState(invalidState);
